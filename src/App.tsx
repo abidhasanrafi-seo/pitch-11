@@ -25,9 +25,9 @@ import type {
 } from './game/types';
 
 function formatMatchClock(seconds: number, halfDuration: number): string {
-  const totalMatchMinutes = (seconds / halfDuration) * 45;
-  const mins = Math.floor(totalMatchMinutes);
-  const secs = Math.floor((totalMatchMinutes - mins) * 60);
+  const total = Math.min(seconds, halfDuration * 2);
+  const mins = Math.floor(total / 60);
+  const secs = Math.floor(total % 60);
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
