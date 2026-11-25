@@ -105,6 +105,25 @@ export default function App() {
     );
   });
 
+  const [isPortrait, setIsPortrait] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(orientation: portrait)').matches;
+  });
+
+  const isMobileDevice = showTouchControls;
+
+  useEffect(() => {
+    const update = () => {
+      setIsPortrait(window.matchMedia('(orientation: portrait)').matches);
+    };
+    window.addEventListener('orientationchange', update);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('orientationchange', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
   const [hud, setHud] = useState<HudSnapshot>(() =>
     engineRef.current!.getHudSnapshot(),
   );
@@ -1080,6 +1099,54 @@ export default function App() {
           penaltyPhase={hud.penalty.phase}
           inputRef={inputRef}
         />
+      )}
+
+      {isMobileDevice && isPortrait && (
+        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-slate-950/95 p-6 text-center">
+          <svg
+            width="96"
+            height="96"
+            viewBox="0 0 96 96"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className="mb-6 animate-pulse"
+            aria-hidden="true"
+          >
+            <rect x="28" y="10" width="40" height="76" rx="8" stroke="#22c55e" strokeWidth="4" />
+            <path d="M48 78h0" stroke="#22c55e" strokeWidth="4" strokeLinecap="round" />
+            <path d="M80 48l8-8-8-8" stroke="#facc15" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M72 48H56" stroke="#facc15" strokeWidth="4" strokeLinecap="round" />
+          </svg>
+          <h2 className="font-display text-3xl font-extrabold text-white">
+            Rotate Your Device
+          </h2>
+          <p className="mt-2 max-w-xs text-sm text-slate-300">
+            Pitch 11 plays best in landscape mode. Please rotate your phone
+            sideways to continue.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                if (screen.orientation && (screen.orientation as any).lock) {
+                  await (screen.orientation as any).lock('landscape');
+                }
+              } catch (e) {
+                // ignore; user can rotate manually
+              }
+            }}
+            className="mt-6 rounded-lg bg-emerald-500 px-6 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-emerald-400"
+          >
+            Auto-Rotate to Landscape
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsPortrait(false)}
+            className="mt-3 text-xs text-slate-400 underline"
+          >
+            Continue in portrait anyway
+          </button>
+        </div>
       )}
 
       <OfflineIndicator />
