@@ -32,7 +32,7 @@ export class GameEngine {
   public formation: FormationId = '4-3-3';
   public awayFormation: FormationId = '4-4-2';
   public difficulty: Difficulty = 'PRO';
-  public halfDurationSeconds = 90;
+  public halfDurationSeconds = 150;
 
   public players: Player[] = [];
   public ball: Ball;
