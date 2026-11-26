@@ -340,8 +340,9 @@ export default function App() {
     return () => { sub.subscription.unsubscribe(); };
   }, []);
 
-  const clearHeld = () => {
-    const inp = inputRef.current;
+  useEffect(() => {
+    const clearHeld = () => {
+      const inp = inputRef.current;
     inp.up = false;
       inp.down = false;
       inp.left = false;
