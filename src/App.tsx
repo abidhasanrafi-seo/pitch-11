@@ -128,9 +128,15 @@ export default function App() {
         setIsFullscreen(false);
       }
     } catch (e) {
-      // Fallback: CSS fullscreen
       setIsFullscreen((v) => !v);
     }
+    // Force canvas to re-measure after fullscreen toggle (important on iOS)
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 100);
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 400);
   }, [isFullscreen]);
 
   const zoomIn = useCallback(() => {
@@ -161,6 +167,8 @@ export default function App() {
   useEffect(() => {
     const onFsChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 400);
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange as any);
@@ -475,7 +483,7 @@ export default function App() {
   return (
     <div
       className={`relative h-screen w-screen overflow-hidden bg-[#08120c] text-slate-50 ${
-        isFullscreen ? 'fixed inset-0 z-[100] h-screen w-screen' : ''
+        isFullscreen ? 'fixed inset-0 z-[100] h-[100dvh] w-screen' : ''
       }`}
     >
       <canvas
