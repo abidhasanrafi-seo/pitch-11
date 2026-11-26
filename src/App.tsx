@@ -141,7 +141,7 @@ export default function App() {
 
   const zoomIn = useCallback(() => {
     const eng = engineRef.current!;
-    eng.cameraZoom = Math.min(2.0, (eng.cameraZoom || 1) + 0.15);
+    eng.cameraZoom = Math.min(2.0, (eng.cameraZoom || 1) + 0.25);
     if (!isFullscreen) {
       toggleFullscreen();
     }
@@ -149,7 +149,7 @@ export default function App() {
 
   const zoomOut = useCallback(() => {
     const eng = engineRef.current!;
-    const next = Math.max(0.6, (eng.cameraZoom || 1) - 0.15);
+    const next = Math.max(0.6, (eng.cameraZoom || 1) - 0.25);
     eng.cameraZoom = next;
     if (next <= 1.0 && isFullscreen) {
       toggleFullscreen();
@@ -760,7 +760,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={zoomOut}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800"
+                onTouchEnd={(e) => { e.preventDefault(); zoomOut(); }}
+                style={{ touchAction: 'manipulation' }}
+                className="inline-flex h-12 w-12 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800 active:scale-95"
                 aria-label="Zoom out"
                 title="Zoom out"
               >
@@ -769,7 +771,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={resetZoom}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800"
+                onTouchEnd={(e) => { e.preventDefault(); resetZoom(); }}
+                style={{ touchAction: 'manipulation' }}
+                className="inline-flex h-12 w-12 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800 active:scale-95"
                 aria-label="Reset zoom"
                 title="Reset zoom"
               >
@@ -778,7 +782,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={zoomIn}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800"
+                onTouchEnd={(e) => { e.preventDefault(); zoomIn(); }}
+                style={{ touchAction: 'manipulation' }}
+                className="inline-flex h-12 w-12 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800 active:scale-95"
                 aria-label="Zoom in"
                 title="Zoom in"
               >
@@ -787,7 +793,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={toggleFullscreen}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800"
+                onTouchEnd={(e) => { e.preventDefault(); toggleFullscreen(); }}
+                style={{ touchAction: 'manipulation' }}
+                className="inline-flex h-12 w-12 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800 active:scale-95"
                 aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
                 title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               >
