@@ -331,8 +331,12 @@ export class GameEngine {
       return;
     }
 
-    // Set piece in progress: pause play, countdown, then place ball
+    // Set piece in progress: fast player movement into position, countdown, then place ball
     if (this.setPiece !== 'NONE') {
+      // Accelerated AI movement so players get into position quickly
+      this.updateAI(dt * 2.5);
+      this.updatePlayers(dt);
+      this.resolvePlayerCollisions();
       this.setPieceTimer -= dt;
       if (this.setPieceTimer <= 0) {
         this.resolveSetPiece();
@@ -1294,7 +1298,7 @@ export class GameEngine {
   private triggerSetPiece(type: 'CORNER' | 'GOAL_KICK' | 'THROW_IN' | 'FREE_KICK' | 'PENALTY', team: TeamSide, text: string): void {
     this.setPiece = type;
     this.setPieceTeam = team;
-    this.setPieceTimer = 2.0;
+    this.setPieceTimer = 1.0;
     this.setPieceText = text;
     this.ball.ownerId = null;
     this.ball.vx = 0; this.ball.vy = 0; this.ball.vz = 0; this.ball.z = 0;
