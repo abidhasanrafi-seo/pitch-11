@@ -142,6 +142,10 @@ export default function App() {
         prev.activePlayerStamina === next.activePlayerStamina &&
         prev.shotCharge === next.shotCharge &&
         prev.goalBannerText === next.goalBannerText &&
+        prev.cards.homeY === next.cards.homeY &&
+        prev.cards.awayY === next.cards.awayY &&
+        prev.cards.homeR === next.cards.homeR &&
+        prev.cards.awayR === next.cards.awayR &&
         prev.penalty.phase === next.penalty.phase &&
         prev.penalty.turn === next.penalty.turn &&
         prev.penalty.round === next.penalty.round &&
@@ -635,6 +639,16 @@ export default function App() {
                 <span className="font-mono-tabular text-base font-bold text-white sm:text-lg">
                   {hud.homeScore}
                 </span>
+                {hud.cards.homeY > 0 && (
+                  <span className="ml-1 rounded-sm bg-yellow-400 px-1 text-[10px] font-bold text-black">
+                    Y{hud.cards.homeY}
+                  </span>
+                )}
+                {hud.cards.homeR > 0 && (
+                  <span className="ml-1 rounded-sm bg-red-500 px-1 text-[10px] font-bold text-white">
+                    R{hud.cards.homeR}
+                  </span>
+                )}
               </div>
               <div className="flex flex-col items-center px-2.5 py-1 sm:px-3.5">
                 <span className="font-mono-tabular text-xs font-bold leading-tight text-emerald-400 sm:text-sm">
@@ -648,6 +662,16 @@ export default function App() {
                 <span className="font-mono-tabular text-base font-bold text-white sm:text-lg">
                   {hud.awayScore}
                 </span>
+                {hud.cards.awayY > 0 && (
+                  <span className="mr-1 rounded-sm bg-yellow-400 px-1 text-[10px] font-bold text-black">
+                    Y{hud.cards.awayY}
+                  </span>
+                )}
+                {hud.cards.awayR > 0 && (
+                  <span className="mr-1 rounded-sm bg-red-500 px-1 text-[10px] font-bold text-white">
+                    R{hud.cards.awayR}
+                  </span>
+                )}
                 <span className="font-display text-sm font-bold tracking-wide text-white sm:text-base">
                   AWAY
                 </span>

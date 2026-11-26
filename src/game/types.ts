@@ -150,6 +150,7 @@ export interface HudSnapshot {
   goalBannerText: string | null;
   goalBannerSub: string | null;
   stats: MatchStats;
+  cards: { homeY: number; awayY: number; homeR: number; awayR: number };
   penalty: {
     phase: PenaltyPhase;
     turn: TeamSide;

@@ -62,6 +62,13 @@ export class GameEngine {
   private goalResetTimer = 0;
   private hitstopTimer = 0;
 
+  // Set pieces
+  public setPiece: 'NONE' | 'CORNER' | 'GOAL_KICK' | 'THROW_IN' | 'FREE_KICK' | 'PENALTY' = 'NONE';
+  public setPieceTeam: TeamSide = 'HOME';
+  public setPieceTimer = 0;
+  public setPieceText: string | null = null;
+  public cards: { homeY: number; awayY: number; homeR: number; awayR: number } = { homeY: 0, awayY: 0, homeR: 0, awayR: 0 };
+
   public cameraX = PITCH.worldW / 2;
   public cameraY = PITCH.worldH / 2;
   public cameraZoom = 1;
@@ -324,6 +331,16 @@ export class GameEngine {
       return;
     }
 
+    // Set piece in progress: pause play, countdown, then place ball
+    if (this.setPiece !== 'NONE') {
+      this.setPieceTimer -= dt;
+      if (this.setPieceTimer <= 0) {
+        this.resolveSetPiece();
+      }
+      this.updateCamera(dt);
+      return;
+    }
+
     this.clockSeconds += dt;
     if (this.half === 1 && this.clockSeconds >= this.halfDurationSeconds) {
       this.clockSeconds = this.halfDurationSeconds;
@@ -563,6 +580,24 @@ export class GameEngine {
         active.tackleCooldown <= 0 &&
         active.stunTimer <= 0
       ) {
+        // Foul chance
+        const foulRoll = Math.random();
+        if (foulRoll < 0.25) {
+          // Foul committed
+          this.ball.x = active.x;
+          this.ball.y = active.y;
+          const cy = PITCH.worldH / 2;
+          const inBox = active.x > PITCH.marginX + PITCH.fieldW - PITCH.penaltyBoxW && active.y > cy - PITCH.penaltyBoxH/2 && active.y < cy + PITCH.penaltyBoxH/2;
+          const foulTeam: TeamSide = 'AWAY';
+          if (inBox) {
+            this.triggerSetPiece('PENALTY', foulTeam, 'PENALTY AWAY');
+            this.cards.awayY += 1;
+          } else {
+            this.triggerSetPiece('FREE_KICK', foulTeam, 'FREE KICK AWAY');
+          }
+          active.stunTimer = 0.5;
+          return;
+        }
         active.tackleTimer = 0.26;
         active.tackleCooldown = 0.9;
         const dirX = mag > 0 ? ix : Math.cos(active.facing);
@@ -593,6 +628,32 @@ export class GameEngine {
     if (target) {
       const lead = isThrough ? 0.55 : 0.26;
       const goalDir = passer.team === 'HOME' ? 1 : -1;
+      // Offside check
+      let offside = false;
+      if (passer.team === 'HOME') {
+        let lastDef = -Infinity;
+        for (const p of this.players) {
+          if (p.team === 'AWAY' && p.role !== 'GK') {
+            if (p.x > lastDef) lastDef = p.x;
+          }
+        }
+        if (target.x > lastDef + 5 && target.x > PITCH.worldW / 2) offside = true;
+      } else {
+        let lastDef = Infinity;
+        for (const p of this.players) {
+          if (p.team === 'HOME' && p.role !== 'GK') {
+            if (p.x < lastDef) lastDef = p.x;
+          }
+        }
+        if (target.x < lastDef - 5 && target.x < PITCH.worldW / 2) offside = true;
+      }
+      if (offside) {
+        this.ball.x = target.x;
+        this.ball.y = target.y;
+        const defTeam: TeamSide = passer.team === 'HOME' ? 'AWAY' : 'HOME';
+        this.triggerSetPiece('FREE_KICK', defTeam, defTeam === 'HOME' ? 'OFFSIDE - FREE KICK HOME' : 'OFFSIDE - FREE KICK AWAY');
+        return;
+      }
       tx = target.x + target.vx * lead + (isThrough ? goalDir * 85 : 0);
       ty = target.y + target.vy * lead;
       if (passer.team === 'HOME') {
@@ -1091,24 +1152,42 @@ export class GameEngine {
       return;
     }
 
+    // Out of bounds -> set pieces
+    const sideOut = this.ball.y < topY || this.ball.y > bottomY;
+    const endOut = (this.ball.x < leftX || this.ball.x > rightX) && (this.ball.y <= goalTop || this.ball.y >= goalBot);
+
+    if (sideOut) {
+      const throwTeam: TeamSide = this.ball.lastTouchTeam === 'HOME' ? 'AWAY' : 'HOME';
+      this.triggerSetPiece('THROW_IN', throwTeam, throwTeam === 'HOME' ? 'THROW-IN HOME' : 'THROW-IN AWAY');
+      return;
+    }
+    if (endOut) {
+      const outRight = this.ball.x > rightX;
+      const attackingEnd: TeamSide = outRight ? 'HOME' : 'AWAY';
+      const last = this.ball.lastTouchTeam;
+      if (last === attackingEnd) {
+        const defending: TeamSide = attackingEnd === 'HOME' ? 'AWAY' : 'HOME';
+        this.triggerSetPiece('GOAL_KICK', defending, defending === 'HOME' ? 'GOAL KICK HOME' : 'GOAL KICK AWAY');
+      } else {
+        this.triggerSetPiece('CORNER', attackingEnd, attackingEnd === 'HOME' ? 'CORNER HOME' : 'CORNER AWAY');
+      }
+      return;
+    }
+
+    // soft clamp
     if (this.ball.y < topY) {
       this.ball.y = topY;
       this.ball.vy = Math.abs(this.ball.vy) * 0.65;
-      this.burstParticles('chalk', this.ball.x, topY, '#f8fafc', 6);
     } else if (this.ball.y > bottomY) {
       this.ball.y = bottomY;
       this.ball.vy = -Math.abs(this.ball.vy) * 0.65;
-      this.burstParticles('chalk', this.ball.x, bottomY, '#f8fafc', 6);
     }
-
     if (this.ball.x < leftX && (this.ball.y <= goalTop || this.ball.y >= goalBot)) {
       this.ball.x = leftX + 2;
       this.ball.vx = Math.abs(this.ball.vx) * 0.6;
-      this.burstParticles('chalk', leftX, this.ball.y, '#f8fafc', 6);
     } else if (this.ball.x > rightX && (this.ball.y <= goalTop || this.ball.y >= goalBot)) {
       this.ball.x = rightX - 2;
       this.ball.vx = -Math.abs(this.ball.vx) * 0.6;
-      this.burstParticles('chalk', rightX, this.ball.y, '#f8fafc', 6);
     }
   }
 
@@ -1154,6 +1233,75 @@ export class GameEngine {
     );
   }
 
+  private resolveSetPiece(): void {
+    const cx = PITCH.worldW / 2;
+    const cy = PITCH.worldH / 2;
+    const sp = this.setPiece;
+    const team = this.setPieceTeam;
+    const isHome = team === 'HOME';
+
+    // Place ball appropriately
+    if (sp === 'CORNER') {
+      const side = this.ball.x < cx ? -1 : 1;
+      this.ball.x = side > 0 ? PITCH.marginX + PITCH.fieldW : PITCH.marginX;
+      this.ball.y = this.ball.y < cy ? PITCH.marginY : PITCH.marginY + PITCH.fieldH;
+      this.ball.vx = 0; this.ball.vy = 0; this.ball.vz = 0; this.ball.z = 0;
+      this.ball.ownerId = null;
+    } else if (sp === 'GOAL_KICK') {
+      this.ball.x = isHome ? PITCH.marginX + 20 : PITCH.marginX + PITCH.fieldW - 20;
+      this.ball.y = cy;
+      this.ball.vx = 0; this.ball.vy = 0; this.ball.vz = 0; this.ball.z = 0;
+      this.ball.ownerId = null;
+    } else if (sp === 'THROW_IN') {
+      this.ball.x = clamp(this.ball.x, PITCH.marginX, PITCH.marginX + PITCH.fieldW);
+      this.ball.y = this.ball.y < PITCH.marginY ? PITCH.marginY : (this.ball.y > PITCH.marginY + PITCH.fieldH ? PITCH.marginY + PITCH.fieldH : this.ball.y);
+      this.ball.vx = 0; this.ball.vy = 0; this.ball.vz = 0; this.ball.z = 0;
+      this.ball.ownerId = null;
+    } else if (sp === 'FREE_KICK') {
+      // ball stays where foul occurred (already set)
+      this.ball.vx = 0; this.ball.vy = 0; this.ball.vz = 0; this.ball.z = 0;
+      this.ball.ownerId = null;
+    } else if (sp === 'PENALTY') {
+      this.ball.x = isHome ? PITCH.marginX + PITCH.fieldW - PITCH.penaltySpotDist : PITCH.marginX + PITCH.penaltySpotDist;
+      this.ball.y = cy;
+      this.ball.vx = 0; this.ball.vy = 0; this.ball.vz = 0; this.ball.z = 0;
+      this.ball.ownerId = null;
+    }
+
+    // Give possession to nearest player of the taking team
+    let best: Player | null = null;
+    let bestD = Infinity;
+    for (const p of this.players) {
+      if (p.team !== team || p.role === 'GK') continue;
+      const d = Math.hypot(p.x - this.ball.x, p.y - this.ball.y);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+    if (best) {
+      best.x = this.ball.x + (isHome ? -20 : 20);
+      best.y = this.ball.y;
+      this.ball.ownerId = best.id;
+      this.ball.lastTouchTeam = team;
+      this.ball.lastTouchPlayerId = best.id;
+      this.ball.pickupCooldown = 0.5;
+      if (team === 'HOME') this.activePlayerId = best.id;
+    }
+
+    this.setPiece = 'NONE';
+    this.setPieceText = null;
+    soundEngine.playWhistle('short');
+  }
+
+  private triggerSetPiece(type: 'CORNER' | 'GOAL_KICK' | 'THROW_IN' | 'FREE_KICK' | 'PENALTY', team: TeamSide, text: string): void {
+    this.setPiece = type;
+    this.setPieceTeam = team;
+    this.setPieceTimer = 2.0;
+    this.setPieceText = text;
+    this.ball.ownerId = null;
+    this.ball.vx = 0; this.ball.vy = 0; this.ball.vz = 0; this.ball.z = 0;
+    this.goalBannerText = text;
+    soundEngine.playWhistle('short');
+  }
+
   private updateCamera(dt: number): void {
     const targetX = clamp(this.ball.x, 420, PITCH.worldW - 420);
     const targetY = clamp(this.ball.y, 260, PITCH.worldH - 260);
@@ -1179,6 +1327,7 @@ export class GameEngine {
       goalBannerText: this.goalBannerText,
       goalBannerSub: this.goalBannerSub,
       stats: { ...this.stats },
+      cards: { ...this.cards },
       penalty: {
         phase: this.penalty.phase,
         turn: this.penalty.turn,
