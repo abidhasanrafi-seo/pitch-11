@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { MobileControls } from './components/MobileControls';
 import { MultiplayerLobby } from './multiplayer/MultiplayerLobby';
-import { connectSocket, getSocket, api } from './multiplayer/socketClient';
+import { connectSocket, getSocket, api, disconnectSocket } from './multiplayer/socketClient';
+import { supabase } from './supabase/client';
 import { soundEngine } from './game/audio';
 import { GameEngine } from './game/matchEngine';
 import { getPenaltyGoalBounds, renderGame } from './game/renderer';
@@ -265,28 +266,48 @@ export default function App() {
   const handleMpAuth = async () => {
     setMpError('');
     try {
-      const path = mpMode === 'login' ? '/api/login' : '/api/register';
-      const body = mpMode === 'login'
-        ? { username: mpForm.username, password: mpForm.password }
-        : { username: mpForm.username, email: mpForm.email, password: mpForm.password };
-      const data = await api(path, { method: 'POST', body: JSON.stringify(body) });
-      if (data.error) { setMpError(data.error); return; }
-      localStorage.setItem('p11_token', data.token);
-      setMpToken(data.token);
-      setMpUser(data.user);
-      connectSocket(data.token);
-      setMpScreen('lobby');
+      if (mpMode === 'register') {
+        const { data, error } = await supabase.auth.signUp({
+          email: mpForm.email,
+          password: mpForm.password,
+          options: { data: { username: mpForm.username } },
+        });
+        if (error) { setMpError(error.message); return; }
+        if (data.user) {
+          setMpUser({ id: data.user.id, username: mpForm.username, email: mpForm.email });
+          setMpToken(data.session?.access_token || '');
+          if (data.session?.access_token) localStorage.setItem('p11_token', data.session.access_token);
+          await connectSocket();
+          setMpScreen('lobby');
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: mpForm.email,
+          password: mpForm.password,
+        });
+        if (error) { setMpError(error.message); return; }
+        if (data.user) {
+          const { data: prof } = await supabase.from('profiles').select('username').eq('id', data.user.id).single();
+          setMpUser({ id: data.user.id, username: prof?.username || data.user.email?.split('@')[0], email: data.user.email });
+          setMpToken(data.session?.access_token || '');
+          if (data.session?.access_token) localStorage.setItem('p11_token', data.session.access_token);
+          await connectSocket();
+          setMpScreen('lobby');
+        }
+      }
     } catch (e: any) {
       setMpError(e?.message || 'Network error');
     }
   };
 
-  const handleMpLogout = () => {
+  const handleMpLogout = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem('p11_token');
     setMpToken('');
     setMpUser(null);
     setMpScreen('none');
     setMpRoom(null);
+    disconnectSocket();
   };
 
   const handleMpMatchStart = (roomId: string, role: 'host' | 'guest', opponent: string, opponentId: number) => {
@@ -298,23 +319,30 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (mpToken && !mpUser) {
-      // try to fetch me
-      api('/api/me').then((data) => {
-        if (data.user) {
-          setMpUser(data.user);
-          connectSocket(mpToken);
-        } else {
-          localStorage.removeItem('p11_token');
-          setMpToken('');
-        }
-      }).catch(() => {});
-    } else if (mpToken && mpUser) {
-      connectSocket(mpToken);
-    }
-  }, [mpToken, mpUser]);
-      const inp = inputRef.current;
-      inp.up = false;
+    supabase.auth.getSession().then(({ data }) => {
+      const session = data.session;
+      if (session) {
+        setMpToken(session.access_token);
+        supabase.from('profiles').select('username').eq('id', session.user.id).single().then(({ data: prof }) => {
+          setMpUser({ id: session.user.id, username: prof?.username || session.user.email?.split('@')[0], email: session.user.email });
+          connectSocket();
+        });
+      }
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setMpToken(session.access_token);
+      } else {
+        setMpToken('');
+        setMpUser(null);
+      }
+    });
+    return () => { sub.subscription.unsubscribe(); };
+  }, []);
+
+  const clearHeld = () => {
+    const inp = inputRef.current;
+    inp.up = false;
       inp.down = false;
       inp.left = false;
       inp.right = false;
@@ -1365,20 +1393,20 @@ export default function App() {
               {mpMode === 'login' ? 'Login' : 'Register'}
             </h2>
             <div className="mt-4 space-y-3">
-              <input
-                value={mpForm.username}
-                onChange={(e) => setMpForm({ ...mpForm, username: e.target.value })}
-                placeholder="Username"
-                className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
-              />
               {mpMode === 'register' && (
                 <input
-                  value={mpForm.email}
-                  onChange={(e) => setMpForm({ ...mpForm, email: e.target.value })}
-                  placeholder="Email"
+                  value={mpForm.username}
+                  onChange={(e) => setMpForm({ ...mpForm, username: e.target.value })}
+                  placeholder="Username"
                   className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
                 />
               )}
+              <input
+                value={mpForm.email}
+                onChange={(e) => setMpForm({ ...mpForm, email: e.target.value })}
+                placeholder="Email"
+                className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
+              />
               <input
                 type="password"
                 value={mpForm.password}
