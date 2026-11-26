@@ -13,7 +13,7 @@ import {
 import { MobileControls } from './components/MobileControls';
 import { MultiplayerLobby } from './multiplayer/MultiplayerLobby';
 import { connectSocket, getSocket, api, disconnectSocket } from './multiplayer/socketClient';
-import { supabase } from './supabase/client';
+import { supabase, isSupabaseConfigured } from './supabase/client';
 import { soundEngine } from './game/audio';
 import { GameEngine } from './game/matchEngine';
 import { getPenaltyGoalBounds, renderGame } from './game/renderer';
@@ -264,6 +264,10 @@ export default function App() {
   }, [syncHud]);
 
   const handleMpAuth = async () => {
+    if (!isSupabaseConfigured) {
+      setMpError('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+      return;
+    }
     setMpError('');
     try {
       if (mpMode === 'register') {
@@ -301,7 +305,7 @@ export default function App() {
   };
 
   const handleMpLogout = async () => {
-    await supabase.auth.signOut();
+    if (isSupabaseConfigured) await supabase.auth.signOut();
     localStorage.removeItem('p11_token');
     setMpToken('');
     setMpUser(null);
@@ -319,6 +323,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
     supabase.auth.getSession().then(({ data }) => {
       const session = data.session;
       if (session) {
