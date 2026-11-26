@@ -1153,8 +1153,8 @@ export class GameEngine {
     }
 
     // Out of bounds -> set pieces
-    const sideOut = this.ball.y < topY || this.ball.y > bottomY;
-    const endOut = (this.ball.x < leftX || this.ball.x > rightX) && (this.ball.y <= goalTop || this.ball.y >= goalBot);
+    const sideOut = !this.ball.ownerId && (this.ball.y < topY || this.ball.y > bottomY);
+    const endOut = !this.ball.ownerId && (this.ball.x < leftX || this.ball.x > rightX) && (this.ball.y <= goalTop || this.ball.y >= goalBot);
 
     if (sideOut) {
       const throwTeam: TeamSide = this.ball.lastTouchTeam === 'HOME' ? 'AWAY' : 'HOME';
