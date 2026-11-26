@@ -11,9 +11,6 @@ import {
   X,
 } from 'lucide-react';
 import { MobileControls } from './components/MobileControls';
-import { MultiplayerLobby } from './multiplayer/MultiplayerLobby';
-import { connectSocket, getSocket, api, disconnectSocket } from './multiplayer/socketClient';
-import { supabase, isSupabaseConfigured } from './supabase/client';
 import { soundEngine } from './game/audio';
 import { GameEngine } from './game/matchEngine';
 import { getPenaltyGoalBounds, renderGame } from './game/renderer';
@@ -99,13 +96,14 @@ export default function App() {
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<Difficulty>('PRO');
   const [muted, setMuted] = useState(false);
-  const [mpScreen, setMpScreen] = useState<'none' | 'auth' | 'lobby'>('none');
-  const [mpUser, setMpUser] = useState<any>(null);
-  const [mpToken, setMpToken] = useState<string>(localStorage.getItem('p11_token') || '');
-  const [mpMode, setMpMode] = useState<'login' | 'register'>('login');
-  const [mpForm, setMpForm] = useState({ username: '', email: '', password: '' });
-  const [mpError, setMpError] = useState('');
-  const [mpRoom, setMpRoom] = useState<any>(null);
+  const [showTouchControls, setShowTouchControls] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(pointer: coarse)').matches ||
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0
+    );
+  });
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -263,92 +261,18 @@ export default function App() {
     syncHud();
   }, [syncHud]);
 
-  const handleMpAuth = async () => {
-    if (!isSupabaseConfigured) {
-      setMpError('Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-      return;
-    }
-    setMpError('');
-    try {
-      if (mpMode === 'register') {
-        const { data, error } = await supabase.auth.signUp({
-          email: mpForm.email,
-          password: mpForm.password,
-          options: { data: { username: mpForm.username } },
-        });
-        if (error) { setMpError(error.message); return; }
-        if (data.user) {
-          setMpUser({ id: data.user.id, username: mpForm.username, email: mpForm.email });
-          setMpToken(data.session?.access_token || '');
-          if (data.session?.access_token) localStorage.setItem('p11_token', data.session.access_token);
-          await connectSocket();
-          setMpScreen('lobby');
-        }
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: mpForm.email,
-          password: mpForm.password,
-        });
-        if (error) { setMpError(error.message); return; }
-        if (data.user) {
-          const { data: prof } = await supabase.from('profiles').select('username').eq('id', data.user.id).single();
-          setMpUser({ id: data.user.id, username: prof?.username || data.user.email?.split('@')[0], email: data.user.email });
-          setMpToken(data.session?.access_token || '');
-          if (data.session?.access_token) localStorage.setItem('p11_token', data.session.access_token);
-          await connectSocket();
-          setMpScreen('lobby');
-        }
-      }
-    } catch (e: any) {
-      setMpError(e?.message || 'Network error');
-    }
-  };
-
-  const handleMpLogout = async () => {
-    if (isSupabaseConfigured) await supabase.auth.signOut();
-    localStorage.removeItem('p11_token');
-    setMpToken('');
-    setMpUser(null);
-    setMpScreen('none');
-    setMpRoom(null);
-    disconnectSocket();
-  };
-
-  const handleMpMatchStart = (roomId: string, role: 'host' | 'guest', opponent: string, opponentId: number) => {
-    setMpRoom({ roomId, role, opponent, opponentId });
-    const eng = engineRef.current!;
-    eng.startNewMatch('MATCH', selectedFormation, selectedDifficulty);
-    syncHud();
-    setMpScreen('none');
-  };
-
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    supabase.auth.getSession().then(({ data }) => {
-      const session = data.session;
-      if (session) {
-        setMpToken(session.access_token);
-        supabase.from('profiles').select('username').eq('id', session.user.id).single().then(({ data: prof }) => {
-          setMpUser({ id: session.user.id, username: prof?.username || session.user.email?.split('@')[0], email: session.user.email });
-          connectSocket();
-        });
-      }
+  const handleToggleMute = useCallback(() => {
+    setMuted((m) => {
+      const next = !m;
+      soundEngine.setMuted(next);
+      return next;
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        setMpToken(session.access_token);
-      } else {
-        setMpToken('');
-        setMpUser(null);
-      }
-    });
-    return () => { sub.subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
     const clearHeld = () => {
       const inp = inputRef.current;
-    inp.up = false;
+      inp.up = false;
       inp.down = false;
       inp.left = false;
       inp.right = false;
@@ -583,13 +507,6 @@ export default function App() {
               <span>Penalty Shootout</span>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setMpScreen('auth')}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3.5 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25"
-              >
-                Online Multiplayer
-              </button>
               <PWAInstallButton />
               <button
                 type="button"
@@ -1390,67 +1307,6 @@ export default function App() {
             Continue in portrait anyway
           </button>
         </div>
-      )}
-
-      {mpScreen === 'auth' && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4">
-          <div className="w-full max-w-sm rounded-lg border border-white/15 bg-slate-900 p-6 shadow-2xl">
-            <h2 className="font-display text-3xl font-bold text-white">
-              {mpMode === 'login' ? 'Login' : 'Register'}
-            </h2>
-            <div className="mt-4 space-y-3">
-              {mpMode === 'register' && (
-                <input
-                  value={mpForm.username}
-                  onChange={(e) => setMpForm({ ...mpForm, username: e.target.value })}
-                  placeholder="Username"
-                  className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
-                />
-              )}
-              <input
-                value={mpForm.email}
-                onChange={(e) => setMpForm({ ...mpForm, email: e.target.value })}
-                placeholder="Email"
-                className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
-              />
-              <input
-                type="password"
-                value={mpForm.password}
-                onChange={(e) => setMpForm({ ...mpForm, password: e.target.value })}
-                placeholder="Password"
-                className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
-              />
-              {mpError && <p className="text-xs text-red-400">{mpError}</p>}
-              <button
-                onClick={handleMpAuth}
-                className="w-full rounded-md bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-emerald-400"
-              >
-                {mpMode === 'login' ? 'Login' : 'Register'}
-              </button>
-              <button
-                onClick={() => setMpMode(mpMode === 'login' ? 'register' : 'login')}
-                className="w-full text-xs text-slate-400 hover:text-white"
-              >
-                {mpMode === 'login' ? 'Need an account? Register' : 'Have an account? Login'}
-              </button>
-              <button
-                onClick={() => setMpScreen('none')}
-                className="w-full rounded-md border border-white/15 bg-transparent px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800"
-              >
-                Back
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {mpScreen === 'lobby' && mpUser && mpToken && (
-        <MultiplayerLobby
-          user={mpUser}
-          token={mpToken}
-          onMatchStart={handleMpMatchStart}
-          onBack={() => setMpScreen('auth')}
-        />
       )}
 
       <OfflineIndicator />
