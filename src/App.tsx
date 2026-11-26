@@ -11,6 +11,8 @@ import {
   X,
 } from 'lucide-react';
 import { MobileControls } from './components/MobileControls';
+import { MultiplayerLobby } from './multiplayer/MultiplayerLobby';
+import { connectSocket, getSocket, api } from './multiplayer/socketClient';
 import { soundEngine } from './game/audio';
 import { GameEngine } from './game/matchEngine';
 import { getPenaltyGoalBounds, renderGame } from './game/renderer';
@@ -96,14 +98,13 @@ export default function App() {
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<Difficulty>('PRO');
   const [muted, setMuted] = useState(false);
-  const [showTouchControls, setShowTouchControls] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return (
-      window.matchMedia('(pointer: coarse)').matches ||
-      'ontouchstart' in window ||
-      navigator.maxTouchPoints > 0
-    );
-  });
+  const [mpScreen, setMpScreen] = useState<'none' | 'auth' | 'lobby'>('none');
+  const [mpUser, setMpUser] = useState<any>(null);
+  const [mpToken, setMpToken] = useState<string>(localStorage.getItem('p11_token') || '');
+  const [mpMode, setMpMode] = useState<'login' | 'register'>('login');
+  const [mpForm, setMpForm] = useState({ username: '', email: '', password: '' });
+  const [mpError, setMpError] = useState('');
+  const [mpRoom, setMpRoom] = useState<any>(null);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -261,16 +262,57 @@ export default function App() {
     syncHud();
   }, [syncHud]);
 
-  const handleToggleMute = useCallback(() => {
-    setMuted((m) => {
-      const next = !m;
-      soundEngine.setMuted(next);
-      return next;
-    });
-  }, []);
+  const handleMpAuth = async () => {
+    setMpError('');
+    try {
+      const path = mpMode === 'login' ? '/api/login' : '/api/register';
+      const body = mpMode === 'login'
+        ? { username: mpForm.username, password: mpForm.password }
+        : { username: mpForm.username, email: mpForm.email, password: mpForm.password };
+      const data = await api(path, { method: 'POST', body: JSON.stringify(body) });
+      if (data.error) { setMpError(data.error); return; }
+      localStorage.setItem('p11_token', data.token);
+      setMpToken(data.token);
+      setMpUser(data.user);
+      connectSocket(data.token);
+      setMpScreen('lobby');
+    } catch (e: any) {
+      setMpError(e?.message || 'Network error');
+    }
+  };
+
+  const handleMpLogout = () => {
+    localStorage.removeItem('p11_token');
+    setMpToken('');
+    setMpUser(null);
+    setMpScreen('none');
+    setMpRoom(null);
+  };
+
+  const handleMpMatchStart = (roomId: string, role: 'host' | 'guest', opponent: string, opponentId: number) => {
+    setMpRoom({ roomId, role, opponent, opponentId });
+    const eng = engineRef.current!;
+    eng.startNewMatch('MATCH', selectedFormation, selectedDifficulty);
+    syncHud();
+    setMpScreen('none');
+  };
 
   useEffect(() => {
-    const clearHeld = () => {
+    if (mpToken && !mpUser) {
+      // try to fetch me
+      api('/api/me').then((data) => {
+        if (data.user) {
+          setMpUser(data.user);
+          connectSocket(mpToken);
+        } else {
+          localStorage.removeItem('p11_token');
+          setMpToken('');
+        }
+      }).catch(() => {});
+    } else if (mpToken && mpUser) {
+      connectSocket(mpToken);
+    }
+  }, [mpToken, mpUser]);
       const inp = inputRef.current;
       inp.up = false;
       inp.down = false;
@@ -507,6 +549,13 @@ export default function App() {
               <span>Penalty Shootout</span>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setMpScreen('auth')}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-3.5 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/25"
+              >
+                Online Multiplayer
+              </button>
               <PWAInstallButton />
               <button
                 type="button"
@@ -1307,6 +1356,67 @@ export default function App() {
             Continue in portrait anyway
           </button>
         </div>
+      )}
+
+      {mpScreen === 'auth' && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-4">
+          <div className="w-full max-w-sm rounded-lg border border-white/15 bg-slate-900 p-6 shadow-2xl">
+            <h2 className="font-display text-3xl font-bold text-white">
+              {mpMode === 'login' ? 'Login' : 'Register'}
+            </h2>
+            <div className="mt-4 space-y-3">
+              <input
+                value={mpForm.username}
+                onChange={(e) => setMpForm({ ...mpForm, username: e.target.value })}
+                placeholder="Username"
+                className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
+              />
+              {mpMode === 'register' && (
+                <input
+                  value={mpForm.email}
+                  onChange={(e) => setMpForm({ ...mpForm, email: e.target.value })}
+                  placeholder="Email"
+                  className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
+                />
+              )}
+              <input
+                type="password"
+                value={mpForm.password}
+                onChange={(e) => setMpForm({ ...mpForm, password: e.target.value })}
+                placeholder="Password"
+                className="w-full rounded-md border border-white/15 bg-slate-950 px-3 py-2 text-sm text-white"
+              />
+              {mpError && <p className="text-xs text-red-400">{mpError}</p>}
+              <button
+                onClick={handleMpAuth}
+                className="w-full rounded-md bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-emerald-400"
+              >
+                {mpMode === 'login' ? 'Login' : 'Register'}
+              </button>
+              <button
+                onClick={() => setMpMode(mpMode === 'login' ? 'register' : 'login')}
+                className="w-full text-xs text-slate-400 hover:text-white"
+              >
+                {mpMode === 'login' ? 'Need an account? Register' : 'Have an account? Login'}
+              </button>
+              <button
+                onClick={() => setMpScreen('none')}
+                className="w-full rounded-md border border-white/15 bg-transparent px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-800"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mpScreen === 'lobby' && mpUser && mpToken && (
+        <MultiplayerLobby
+          user={mpUser}
+          token={mpToken}
+          onMatchStart={handleMpMatchStart}
+          onBack={() => setMpScreen('auth')}
+        />
       )}
 
       <OfflineIndicator />
