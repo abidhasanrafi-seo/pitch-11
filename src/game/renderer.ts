@@ -45,7 +45,7 @@ function renderMatchPitch(
   ctx.fillRect(0, 0, w, h);
 
   const baseScale = w < 768 ? Math.max(w / 900, h / 960) * 0.82 : Math.max(w / 1280, h / 820) * 0.96;
-  const scale = Math.max(0.46, Math.min(1.12, baseScale));
+  const scale = Math.max(0.3, Math.min(1.6, baseScale * (engine.cameraZoom || 1)));
   const shakeX =
     engine.shakeAmount > 0.1 ? (Math.random() - 0.5) * engine.shakeAmount * 2 : 0;
   const shakeY =

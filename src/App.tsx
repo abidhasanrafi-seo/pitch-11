@@ -105,6 +105,61 @@ export default function App() {
     );
   });
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      const el = document.documentElement as any;
+      if (!isFullscreen) {
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen) {
+          el.webkitRequestFullscreen();
+        } else if (el.msRequestFullscreen) {
+          el.msRequestFullscreen();
+        }
+        setIsFullscreen(true);
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        }
+        setIsFullscreen(false);
+      }
+    } catch (e) {
+      // Fallback: CSS fullscreen
+      setIsFullscreen((v) => !v);
+    }
+  }, [isFullscreen]);
+
+  const zoomIn = useCallback(() => {
+    const eng = engineRef.current!;
+    eng.cameraZoom = Math.min(2.0, (eng.cameraZoom || 1) + 0.15);
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    const eng = engineRef.current!;
+    eng.cameraZoom = Math.max(0.6, (eng.cameraZoom || 1) - 0.15);
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    const eng = engineRef.current!;
+    eng.cameraZoom = 1;
+  }, []);
+
+  useEffect(() => {
+    const onFsChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange as any);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange as any);
+    };
+  }, []);
+
   const [isPortrait, setIsPortrait] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(orientation: portrait)').matches;
@@ -408,7 +463,11 @@ export default function App() {
   const awayPossPct = 100 - homePossPct;
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-[#08120c] text-slate-50">
+    <div
+      className={`relative h-screen w-screen overflow-hidden bg-[#08120c] text-slate-50 ${
+        isFullscreen ? 'fixed inset-0 z-[100] h-screen w-screen' : ''
+      }`}
+    >
       <canvas
         ref={canvasRef}
         onPointerMove={handleCanvasPointerMove}
@@ -680,6 +739,42 @@ export default function App() {
             </div>
 
             <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={zoomOut}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800"
+                aria-label="Zoom out"
+                title="Zoom out"
+              >
+                <span className="text-lg font-bold leading-none">−</span>
+              </button>
+              <button
+                type="button"
+                onClick={resetZoom}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800"
+                aria-label="Reset zoom"
+                title="Reset zoom"
+              >
+                <span className="text-xs font-bold">1x</span>
+              </button>
+              <button
+                type="button"
+                onClick={zoomIn}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800"
+                aria-label="Zoom in"
+                title="Zoom in"
+              >
+                <span className="text-lg font-bold leading-none">+</span>
+              </button>
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white/15 bg-slate-950/88 text-slate-200 transition-colors hover:bg-slate-800"
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              >
+                <span className="text-sm font-bold">{isFullscreen ? '✕' : '⛶'}</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowTouchControls((v) => !v)}
