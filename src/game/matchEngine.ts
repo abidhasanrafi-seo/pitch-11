@@ -61,6 +61,7 @@ export class GameEngine {
   public goalBannerSub: string | null = null;
   private goalResetTimer = 0;
   private hitstopTimer = 0;
+  private goalBannerTimer = 0;
 
   // Set pieces
   public setPiece: 'NONE' | 'CORNER' | 'GOAL_KICK' | 'THROW_IN' | 'FREE_KICK' | 'PENALTY' = 'NONE';
@@ -284,6 +285,13 @@ export class GameEngine {
     const dt = Math.min(rawDt, 0.05);
 
     this.shakeAmount = Math.max(0, this.shakeAmount - dt * 22);
+    if (this.goalBannerTimer > 0) {
+      this.goalBannerTimer -= dt;
+      if (this.goalBannerTimer <= 0) {
+        this.goalBannerText = null;
+        this.goalBannerSub = null;
+      }
+    }
     this.netLeftRipple = Math.max(0, this.netLeftRipple - dt * 2.2);
     this.netRightRipple = Math.max(0, this.netRightRipple - dt * 2.2);
     this.updateParticles(dt);
@@ -1303,6 +1311,7 @@ export class GameEngine {
     this.ball.ownerId = null;
     this.ball.vx = 0; this.ball.vy = 0; this.ball.vz = 0; this.ball.z = 0;
     this.goalBannerText = text;
+    this.goalBannerTimer = 1.0;
     soundEngine.playWhistle('short');
   }
 

@@ -717,16 +717,31 @@ export default function App() {
           </div>
 
           {hud.goalBannerText && (
-            <div className="mx-auto my-auto flex flex-col items-center rounded-lg border border-white/20 bg-slate-950/92 px-8 py-4 text-center shadow-2xl">
-              <div className="font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl">
-                {hud.goalBannerText}
-              </div>
-              {hud.goalBannerSub && (
-                <div className="mt-1 font-mono-tabular text-sm font-medium text-slate-200">
-                  {hud.goalBannerSub}
+            (() => {
+              const t = hud.goalBannerText || '';
+              const isSetPiece = /KICK|THROW|CORNER|OFFSIDE|PENALTY|FREE/i.test(t);
+              if (isSetPiece) {
+                return (
+                  <div className="mx-auto mt-4 flex flex-col items-center rounded-md border border-white/20 bg-slate-950/85 px-4 py-1.5 text-center shadow-lg">
+                    <div className="font-display text-sm font-bold tracking-wide text-amber-400">
+                      {hud.goalBannerText}
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div className="mx-auto my-auto flex flex-col items-center rounded-lg border border-white/20 bg-slate-950/92 px-8 py-4 text-center shadow-2xl">
+                  <div className="font-display text-4xl font-extrabold tracking-tight text-amber-400 sm:text-5xl">
+                    {hud.goalBannerText}
+                  </div>
+                  {hud.goalBannerSub && (
+                    <div className="mt-1 font-mono-tabular text-sm font-medium text-slate-200">
+                      {hud.goalBannerSub}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()
           )}
 
           <div className="hidden items-end justify-between md:flex">
