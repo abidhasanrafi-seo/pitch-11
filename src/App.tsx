@@ -136,17 +136,27 @@ export default function App() {
   const zoomIn = useCallback(() => {
     const eng = engineRef.current!;
     eng.cameraZoom = Math.min(2.0, (eng.cameraZoom || 1) + 0.15);
-  }, []);
+    if (!isFullscreen) {
+      toggleFullscreen();
+    }
+  }, [isFullscreen, toggleFullscreen]);
 
   const zoomOut = useCallback(() => {
     const eng = engineRef.current!;
-    eng.cameraZoom = Math.max(0.6, (eng.cameraZoom || 1) - 0.15);
-  }, []);
+    const next = Math.max(0.6, (eng.cameraZoom || 1) - 0.15);
+    eng.cameraZoom = next;
+    if (next <= 1.0 && isFullscreen) {
+      toggleFullscreen();
+    }
+  }, [isFullscreen, toggleFullscreen]);
 
   const resetZoom = useCallback(() => {
     const eng = engineRef.current!;
     eng.cameraZoom = 1;
-  }, []);
+    if (isFullscreen) {
+      toggleFullscreen();
+    }
+  }, [isFullscreen, toggleFullscreen]);
 
   useEffect(() => {
     const onFsChange = () => {
